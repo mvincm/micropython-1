@@ -38,7 +38,7 @@ def _q_push_sorted(q, v, data):
         q[0] = v
     else:
         cur = q[0]
-        while cur.next and (not isinstance(q[0].data, int) or data >= cur.next.data):
+        while cur.next and (not isinstance(cur.next.data, int) or data >= cur.next.data):
             cur = cur.next
         v.next = cur.next
         cur.next = v
