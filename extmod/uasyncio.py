@@ -3,7 +3,7 @@ MicroPython uasyncio module
 MIT license; Copyright (c) 2019 Damien P. George
 """
 
-from time import ticks_ms as ticks
+from time import ticks_ms as ticks, ticks_diff, ticks_add
 import select
 
 ################################################################################
@@ -22,23 +22,23 @@ def _q_push_sorted(q, v, data):
     v.data = data
 
     global _q_last
-    if q is _queue and data <= ticks():
+    if q is _queue and ticks_diff(data, ticks()) <= 0:
         cur = _q_last
-        if cur and data >= cur.data:
+        if cur and ticks_diff(data, cur.data) >= 0:
             # Optimisation: can start looking from _q_last to insert this item
-            while cur.next and data >= cur.next.data:
+            while cur.next and ticks_diff(data, cur.next.data) >= 0:
                 cur = cur.next
             v.next = cur.next
             cur.next = v
             _q_last = cur
             return
 
-    if not q[0] or (isinstance(q[0].data, int) and data < q[0].data):
+    if not q[0] or (isinstance(q[0].data, int) and ticks_diff(data, q[0].data) < 0):
         v.next = q[0]
         q[0] = v
     else:
         cur = q[0]
-        while cur.next and (not isinstance(cur.next.data, int) or data >= cur.next.data):
+        while cur.next and (not isinstance(cur.next.data, int) or ticks_diff(data, cur.next.data) >= 0):
             cur = cur.next
         v.next = cur.next
         cur.next = v
@@ -163,7 +163,7 @@ class SingletonGenerator:
 # Pause task execution for the given time (integer in milliseconds, uPy extension)
 # Use a SingletonGenerator to do it without allocating on the heap
 def sleep_ms(t, sgen=SingletonGenerator()):
-    _q_push_sorted(_queue, cur_task, ticks() + t)
+    _q_push_sorted(_queue, cur_task, ticks_add(ticks(), t))
     sgen.state = 1
     return sgen
 
@@ -410,7 +410,7 @@ def run_until_complete(main_task=None):
                     dt = 0
                 else:
                     # "data" is time to schedule task at
-                    dt = max(0, _queue[0].data - ticks())
+                    dt = max(0, ticks_diff(_queue[0].data, ticks()))
             elif not _io_queue.map:
                 # No tasks can be woken so finished running
                 return
