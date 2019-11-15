@@ -119,6 +119,8 @@ class Task:
             # Set calling task's data to this task that it waits on, to double-link it
             cur_task.data = self
     def cancel(self):
+        if self is cur_task:
+            raise RuntimeError('cannot cancel self')
         # If Task waits on another task then forward the cancel to the one it's waiting on
         while isinstance(self.data, Task):
             self = self.data
