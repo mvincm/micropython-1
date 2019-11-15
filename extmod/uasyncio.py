@@ -391,12 +391,12 @@ def run_until_complete(main_task=None):
             dt = -1
             if _queue.next:
                 # A task waiting on _queue
-                if isinstance(_queue.next.data, type):
-                    # "data" is an exception to throw into the task
-                    dt = 0
-                else:
+                if isinstance(_queue.next.data, int):
                     # "data" is time to schedule task at
                     dt = max(0, ticks_diff(_queue.next.data, ticks()))
+                else:
+                    # "data" is an exception to throw into the task
+                    dt = 0
             elif not _io_queue.map:
                 # No tasks can be woken so finished running
                 return
@@ -408,10 +408,10 @@ def run_until_complete(main_task=None):
         cur_task = t
         try:
             # Continue running the coroutine, it's responsible for rescheduling itself
-            if isinstance(t.data, type):
-                t.coro.throw(t.data)
-            else:
+            if isinstance(t.data, int):
                 t.coro.send(None)
+            else:
+                t.coro.throw(t.data)
         except excs as er:
             # This task is done, schedule any tasks waiting on it
             if t is main_task:
