@@ -458,5 +458,5 @@ class Loop:
     def close(self):
         pass
 
-def get_event_loop(n=0, m=0):
+def get_event_loop(runq_len=0, waitq_len=0):
     return Loop()
