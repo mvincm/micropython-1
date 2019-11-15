@@ -4,7 +4,7 @@ MIT license; Copyright (c) 2019 Damien P. George
 """
 
 from time import ticks_ms as ticks, ticks_diff, ticks_add
-import select
+import sys, select
 
 ################################################################################
 # Queue class
@@ -424,7 +424,8 @@ _io_queue = IOQueue()
 # Keep scheduling tasks until there are none left to schedule
 def run_until_complete(main_task=None):
     global cur_task
-    excs = (CancelledError, Exception) # To prevent heap allocation in loop
+    excs_all = (CancelledError, Exception) # To prevent heap allocation in loop
+    excs_stop = (CancelledError, StopIteration) # To prevent heap allocation in loop
     while True:
         # Wait until the head of _queue is ready to run
         dt = 1
@@ -453,12 +454,15 @@ def run_until_complete(main_task=None):
                 t.coro.send(None)
             else:
                 t.coro.throw(t.data)
-        except excs as er:
+        except excs_all as er:
             # This task is done, schedule any tasks waiting on it
             if t is main_task:
                 if isinstance(er, StopIteration):
                     return er.value
                 raise er
+            elif not isinstance(er, excs_stop):
+                print('task raised exception:', t.coro)
+                sys.print_exception(er)
             t.data = er # save return value of coro to pass up to caller
             if hasattr(t, 'waiting'):
                 while t.waiting.next:
