@@ -14,13 +14,6 @@ class Queue:
         self.next = None
         self.last = None
 
-    def pop_head(self):
-        v = self.next
-        self.next = v.next
-        if self.last is v:
-            self.last = v.next
-        return v
-
     def push_sorted(self, v, data):
         v.data = data
 
@@ -52,7 +45,14 @@ class Queue:
         v.next = self.next
         self.next = v
 
-    def remove_from(self, v):
+    def pop_head(self):
+        v = self.next
+        self.next = v.next
+        if self.last is v:
+            self.last = v.next
+        return v
+
+    def remove(self, v):
         cur = self
         while cur.next:
             if cur.next is v:
@@ -99,9 +99,9 @@ class Task:
             self = self.data
         # Reschedule Task as a cancelled task
         if hasattr(self.data, 'waiting'):
-            self.data.waiting.remove_from(self)
+            self.data.waiting.remove(self)
         else:
-            _queue.remove_from(self)
+            _queue.remove(self)
         _queue.push_error(self, CancelledError)
         return True
 
@@ -160,7 +160,7 @@ async def wait_for(aw, timeout):
         # Ignore CancelledError from aw, it's probably due to timeout
         pass
     finally:
-        _queue.remove_from(cancel_task)
+        _queue.remove(cancel_task)
     if cancel_task.coro is None:
         # Cancel task ran to completion, ie there was a timeout
         raise TimeoutError
