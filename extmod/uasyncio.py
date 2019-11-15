@@ -90,12 +90,7 @@ class Event:
             self.waiting.push_head(cur_task)
             # Set calling task's data to this event that it waits on, to double-link it
             cur_task.data = self
-            try:
-                yield
-            except CancelledError as er:
-                if self.waiting:
-                    self.waiting.remove_from(cur_task)
-                raise er
+            yield
         return True
 
 # Task class representing a coroutine, can be waited on and cancelled
