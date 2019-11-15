@@ -415,8 +415,9 @@ def run_until_complete(main_task=None):
         except excs as er:
             # This task is done, schedule any tasks waiting on it
             if t is main_task:
-                # TODO this assumes StopIteration
-                return er.value
+                if isinstance(er, StopIteration):
+                    return er.value
+                raise er
             t.data = er # save return value of coro to pass up to caller
             if hasattr(t, 'waiting'):
                 while t.waiting.next:
