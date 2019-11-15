@@ -7,69 +7,68 @@ from time import ticks_ms as ticks, ticks_diff, ticks_add
 import select
 
 ################################################################################
-# Linked list functions
+# Queue class
 
-def _q_pop_head(q):
-    global _q_last
-    v = q[0]
-    q[0] = v.next
-    if _q_last is v:
-        _q_last = v.next
-    return v
+class Queue:
+    def __init__(self):
+        self.next = None
+        self.last = None
 
-_q_last = None
-def _q_push_sorted(q, v, data):
-    v.data = data
+    def pop_head(self):
+        v = self.next
+        self.next = v.next
+        if self.last is v:
+            self.last = v.next
+        return v
 
-    global _q_last
-    if q is _queue and ticks_diff(data, ticks()) <= 0:
-        cur = _q_last
-        if cur and ticks_diff(data, cur.data) >= 0:
-            # Optimisation: can start looking from _q_last to insert this item
-            while cur.next and ticks_diff(data, cur.next.data) >= 0:
+    def push_sorted(self, v, data):
+        v.data = data
+
+        if ticks_diff(data, ticks()) <= 0:
+            cur = self.last
+            if cur and ticks_diff(data, cur.data) >= 0:
+                # Optimisation: can start looking from self.last to insert this item
+                while cur.next and ticks_diff(data, cur.next.data) >= 0:
+                    cur = cur.next
+                v.next = cur.next
+                cur.next = v
+                self.last = cur
+                return
+
+        if not self.next or (isinstance(self.next.data, int) and ticks_diff(data, self.next.data) < 0):
+            v.next = self.next
+            self.next = v
+        else:
+            cur = self.next
+            while cur.next and (not isinstance(cur.next.data, int) or ticks_diff(data, cur.next.data) >= 0):
                 cur = cur.next
             v.next = cur.next
             cur.next = v
-            _q_last = cur
-            return
+            self.last = cur
 
-    if not q[0] or (isinstance(q[0].data, int) and ticks_diff(data, q[0].data) < 0):
-        v.next = q[0]
-        q[0] = v
-    else:
-        cur = q[0]
-        while cur.next and (not isinstance(cur.next.data, int) or ticks_diff(data, cur.next.data) >= 0):
-            cur = cur.next
-        v.next = cur.next
-        cur.next = v
+    def push_head(self, v):
+        self.push_sorted(v, ticks())
 
-        if q is _queue:
-            _q_last = cur
+    def push_error(self, v, err):
+        # Push directly to head (but should probably still consider fairness)
+        v.data = err
+        v.next = self.next
+        self.next = v
 
-def _q_push_head(q, v):
-    _q_push_sorted(q, v, ticks())
-
-def _q_push_error(q, v, err):
-    # Push directly to head (but should probably still consider fairness)
-    v.data = err
-    v.next = q[0]
-    q[0] = v
-
-def _q_remove_from(q, v):
-    global _q_last
-    if q[0] is None:
-        pass
-    elif q[0] is v:
-        q[0] = v.next
-    else:
-        cur = q[0]
-        while cur.next:
-            if cur.next is v:
-                cur.next = v.next
-                break
-            cur = cur.next
-    if _q_last is v:
-        _q_last = v.next
+    def remove_from(self, v):
+        if self.next is None:
+            pass
+        elif self.next is v:
+            self.next = v.next
+        else:
+            cur = self.next
+            while cur.next:
+                if cur.next is v:
+                    cur.next = v.next
+                    break
+                cur = cur.next
+        if self.last is v:
+            self.last = v.next
 
 ################################################################################
 # Fundamental classes
@@ -83,27 +82,27 @@ class TimeoutError(Exception):
 # Event class for primitive events that can be waited on, set, and cleared
 class Event:
     def __init__(self):
-        self.waiting = [None] # Linked list of Tasks waiting on completion of this event
+        self.waiting = Queue() # Queue of Tasks waiting on completion of this event
     def set(self):
         if self.waiting:
             # Event becomes set, schedule any tasks waiting on it
-            while self.waiting[0]:
-                _q_push_head(_queue, _q_pop_head(self.waiting))
+            while self.waiting.next:
+                _queue.push_head(self.waiting.pop_head())
             self.waiting = None # Indicate event is now set
     def clear(self):
         if not self.waiting:
-            self.waiting = [None]
+            self.waiting = Queue()
     async def wait(self):
         if self.waiting:
             # Event not set, put the calling task on the event's waiting queue
-            _q_push_head(self.waiting, cur_task)
+            self.waiting.push_head(cur_task)
             # Set calling task's data to this event that it waits on, to double-link it
             cur_task.data = self
             try:
                 yield
             except CancelledError as er:
                 if self.waiting:
-                    _q_remove_from(self.waiting, cur_task)
+                    self.waiting.remove_from(cur_task)
                 raise er
         return True
 
@@ -116,7 +115,7 @@ class Task:
     def __iter__(self):
         if not hasattr(self, 'waiting'):
             # Lazily allocated head of linked list of Tasks waiting on completion of this task
-            self.waiting = [None]
+            self.waiting = Queue()
         return self
     def send(self, v):
         if not self.coro:
@@ -124,7 +123,7 @@ class Task:
             raise self.data
         else:
             # Put calling task on waiting queue
-            _q_push_head(self.waiting, cur_task)
+            self.waiting.push_head(cur_task)
             # Set calling task's data to this task that it waits on, to double-link it
             cur_task.data = self
     def cancel(self):
@@ -133,16 +132,16 @@ class Task:
             self = self.data
         # Reschedule Task as a cancelled task
         if isinstance(self.data, Event):
-            _q_remove_from(self.data.waiting, self)
+            self.data.waiting.remove_from(self)
         else:
-            _q_remove_from(_queue, self)
-        _q_push_error(_queue, self, CancelledError)
+            _queue.remove_from(self)
+        _queue.push_error(self, CancelledError)
         return True
 
 # Create and schedule a new task from a coroutine
 def create_task(coro):
     t = Task(coro)
-    _q_push_head(_queue, t)
+    _queue.push_head(t)
     return t
 
 # "Yield" once, then raise StopIteration
@@ -163,7 +162,7 @@ class SingletonGenerator:
 # Pause task execution for the given time (integer in milliseconds, uPy extension)
 # Use a SingletonGenerator to do it without allocating on the heap
 def sleep_ms(t, sgen=SingletonGenerator()):
-    _q_push_sorted(_queue, cur_task, ticks_add(ticks(), t))
+    _queue.push_sorted(cur_task, ticks_add(ticks(), t))
     sgen.state = 1
     return sgen
 
@@ -194,7 +193,7 @@ async def wait_for(aw, timeout):
         # Ignore CancelledError from aw, it's probably due to timeout
         pass
     finally:
-        _q_remove_from(_queue, cancel_task)
+        _queue.remove_from(cancel_task)
     if cancel_task.coro is None:
         # Cancel task ran to completion, ie there was a timeout
         raise TimeoutError
@@ -206,7 +205,7 @@ async def gather(*aws, return_exceptions=False):
         try:
             # TODO handle cancel of gather itself
             #if ts[i].coro:
-            #    _q_push_head(iter(ts[i]).waiting, cur_task)
+            #    iter(ts[i]).waiting.push_head(cur_task)
             #    try:
             #        yield
             #    except CancelledError as er:
@@ -265,10 +264,10 @@ class IOQueue:
             err = ev & ~(select.POLLIN | select.POLLOUT)
             #print('poll', s, sm, ev, err)
             if ev & select.POLLIN or (err and sm[0] is not None):
-                _q_push_head(_queue, sm[0])
+                _queue.push_head(sm[0])
                 sm[0] = None
             if ev & select.POLLOUT or (err and sm[1] is not None):
-                _q_push_head(_queue, sm[1])
+                _queue.push_head(sm[1])
                 sm[1] = None
             if sm[0] is None and sm[1] is None:
                 self._dequeue(s)
@@ -383,8 +382,8 @@ async def start_server(cb, host, port, backlog=5):
 ################################################################################
 # Main run loop
 
-# Linked list of Task instances
-_queue = [None]
+# Queue of Task instances
+_queue = Queue()
 
 # Task queue and poller for stream IO
 _io_queue = IOQueue()
@@ -398,14 +397,14 @@ def run_until_complete(main_task=None):
         dt = 1
         while dt > 0:
             dt = -1
-            if _queue[0]:
+            if _queue.next:
                 # A task waiting on _queue
-                if isinstance(_queue[0].data, type):
+                if isinstance(_queue.next.data, type):
                     # "data" is an exception to throw into the task
                     dt = 0
                 else:
                     # "data" is time to schedule task at
-                    dt = max(0, ticks_diff(_queue[0].data, ticks()))
+                    dt = max(0, ticks_diff(_queue.next.data, ticks()))
             elif not _io_queue.map:
                 # No tasks can be woken so finished running
                 return
@@ -413,7 +412,7 @@ def run_until_complete(main_task=None):
             _io_queue.wait_io_event(dt)
 
         # Get next task to run and continue it
-        t = _q_pop_head(_queue)
+        t = _queue.pop_head()
         cur_task = t
         try:
             # Continue running the coroutine, it's responsible for rescheduling itself
@@ -428,8 +427,8 @@ def run_until_complete(main_task=None):
                 return er.value
             t.data = er # save return value of coro to pass up to caller
             if hasattr(t, 'waiting'):
-                while t.waiting[0]:
-                    _q_push_head(_queue, _q_pop_head(t.waiting))
+                while t.waiting.next:
+                    _queue.push_head(t.waiting.pop_head())
                 t.waiting = None # Free waiting queue head
             _io_queue.remove(t) # Remove task from the IO queue (if it's on it)
             t.coro = None # Indicate task is done
