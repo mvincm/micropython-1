@@ -187,6 +187,48 @@ async def gather(*aws, return_exceptions=False):
     return ts
 
 ################################################################################
+# Lock (optional component)
+
+# Lock class for primitive mutex capability
+class Lock:
+    def __init__(self):
+        self.state = 0 # 0=unlocked; 1=unlocked but waiting task pending resume; 2=locked
+        self.waiting = Queue() # Queue of Tasks waiting to acquire this Lock
+    def locked(self):
+        return self.state == 2
+    def release(self):
+        if self.state != 2:
+            raise RuntimeError
+        if self.waiting.next:
+            # Task(s) waiting on lock, schedule first Task
+            _queue.push_head(self.waiting.pop_head())
+            self.state = 1
+        else:
+            # No Task waiting so unlock
+            self.state = 0
+    async def acquire(self):
+        if self.state != 0 or self.waiting.next:
+            # Lock unavailable, put the calling Task on the waiting queue
+            self.waiting.push_head(cur_task)
+            # Set calling task's data to double-link it
+            cur_task.data = self
+            try:
+                yield
+            except CancelledError:
+                if self.state == 1:
+                    # Cancelled while pending on resume, schedule next waiting Task
+                    self.state = 2
+                    self.release()
+                raise
+        # Lock available, set it as locked
+        self.state = 2
+        return True
+    async def __aenter__(self):
+        return await self.acquire()
+    async def __aexit__(self, exc_type, exc, tb):
+        return self.release()
+
+################################################################################
 # Event (optional component)
 
 # Event class for primitive events that can be waited on, set, and cleared
