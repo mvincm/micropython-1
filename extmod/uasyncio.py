@@ -120,7 +120,7 @@ class Task:
         while isinstance(self.data, Task):
             self = self.data
         # Reschedule Task as a cancelled task
-        if isinstance(self.data, Event):
+        if hasattr(self.data, 'waiting'):
             self.data.waiting.remove_from(self)
         else:
             _queue.remove_from(self)
