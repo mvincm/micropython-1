@@ -460,16 +460,19 @@ def run_until_complete(main_task=None):
                 if isinstance(er, StopIteration):
                     return er.value
                 raise er
-            elif not isinstance(er, excs_stop):
-                print('task raised exception:', t.coro)
-                sys.print_exception(er)
             t.data = er # save return value of coro to pass up to caller
+            waiting = False
             if hasattr(t, 'waiting'):
                 while t.waiting.next:
                     _queue.push_head(t.waiting.pop_head())
+                    waiting = True
                 t.waiting = None # Free waiting queue head
             _io_queue.remove(t) # Remove task from the IO queue (if it's on it)
             t.coro = None # Indicate task is done
+            # Print out exception for detached tasks
+            if not waiting and not isinstance(er, excs_stop):
+                print('task raised exception:', t.coro)
+                sys.print_exception(er)
 
 ################################################################################
 # Legacy uasyncio compatibility
