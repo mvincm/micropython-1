@@ -71,28 +71,6 @@ class CancelledError(BaseException):
 class TimeoutError(Exception):
     pass
 
-# Event class for primitive events that can be waited on, set, and cleared
-class Event:
-    def __init__(self):
-        self.waiting = Queue() # Queue of Tasks waiting on completion of this event
-    def set(self):
-        if self.waiting:
-            # Event becomes set, schedule any tasks waiting on it
-            while self.waiting.next:
-                _queue.push_head(self.waiting.pop_head())
-            self.waiting = None # Indicate event is now set
-    def clear(self):
-        if not self.waiting:
-            self.waiting = Queue()
-    async def wait(self):
-        if self.waiting:
-            # Event not set, put the calling task on the event's waiting queue
-            self.waiting.push_head(cur_task)
-            # Set calling task's data to this event that it waits on, to double-link it
-            cur_task.data = self
-            yield
-        return True
-
 # Task class representing a coroutine, can be waited on and cancelled
 class Task:
     def __init__(self, coro):
@@ -207,6 +185,31 @@ async def gather(*aws, return_exceptions=False):
             else:
                 raise er
     return ts
+
+################################################################################
+# Event (optional component)
+
+# Event class for primitive events that can be waited on, set, and cleared
+class Event:
+    def __init__(self):
+        self.waiting = Queue() # Queue of Tasks waiting on completion of this event
+    def set(self):
+        if self.waiting:
+            # Event becomes set, schedule any tasks waiting on it
+            while self.waiting.next:
+                _queue.push_head(self.waiting.pop_head())
+            self.waiting = None # Indicate event is now set
+    def clear(self):
+        if not self.waiting:
+            self.waiting = Queue()
+    async def wait(self):
+        if self.waiting:
+            # Event not set, put the calling task on the event's waiting queue
+            self.waiting.push_head(cur_task)
+            # Set calling task's data to this event that it waits on, to double-link it
+            cur_task.data = self
+            yield
+        return True
 
 ################################################################################
 # General streams
