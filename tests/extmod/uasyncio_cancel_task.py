@@ -47,6 +47,11 @@ async def main():
     except asyncio.CancelledError:
         print('main got CancelledError')
 
+    # Cancel task after it has finished
+    t = asyncio.create_task(task(0.01, False))
+    await asyncio.sleep(0.05)
+    print(t.cancel())
+
     # Nested: task2 waits on task, task2 is cancelled (should cancel task then task2)
     print('----')
     t = asyncio.create_task(task2(True))
