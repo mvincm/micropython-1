@@ -294,14 +294,12 @@ class Stream:
         # TODO yield?
         self.s.close()
     async def read(self, n):
-        _io_queue.queue_read(self.s)
-        yield
+        yield _io_queue.queue_read(self.s)
         return self.s.read(n)
     async def readline(self):
         l = b''
         while True:
-            _io_queue.queue_read(self.s)
-            yield
+            yield _io_queue.queue_read(self.s)
             l2 = self.s.readline() # may do multiple reads but won't block
             l += l2
             if not l2 or l[-1] == 10: # \n (check l in case l2 is str)
@@ -312,8 +310,7 @@ class Stream:
         mv = memoryview(self.out_buf)
         off = 0
         while off < len(mv):
-            _io_queue.queue_write(self.s)
-            yield
+            yield _io_queue.queue_write(self.s)
             ret = self.s.write(mv[off:])
             if ret is not None:
                 off += ret
@@ -337,8 +334,7 @@ async def open_connection(host, port):
     except OSError as er:
         if er.args[0] != 115: # EINPROGRESS
             raise er
-    _io_queue.queue_write(s)
-    yield
+    yield _io_queue.queue_write(s)
     return ss, ss
 
 # Class representing a TCP stream server, can be closed and used in "async with"
@@ -366,9 +362,8 @@ class Server:
         self.task = cur_task
         # Accept incoming connections
         while True:
-            _io_queue.queue_read(s)
             try:
-                yield
+                yield _io_queue.queue_read(s)
             except CancelledError:
                 # Shutdown server
                 s.close()
