@@ -35,15 +35,12 @@ class Queue:
                 self.last = cur
                 return
 
-        if not self.next or (isinstance(self.next.data, int) and ticks_diff(data, self.next.data) < 0):
-            v.next = self.next
-            self.next = v
-        else:
-            cur = self.next
-            while cur.next and (not isinstance(cur.next.data, int) or ticks_diff(data, cur.next.data) >= 0):
-                cur = cur.next
-            v.next = cur.next
-            cur.next = v
+        cur = self
+        while cur.next and (not isinstance(cur.next.data, int) or ticks_diff(data, cur.next.data) >= 0):
+            cur = cur.next
+        v.next = cur.next
+        cur.next = v
+        if cur is not self:
             self.last = cur
 
     def push_head(self, v):
@@ -56,17 +53,12 @@ class Queue:
         self.next = v
 
     def remove_from(self, v):
-        if self.next is None:
-            pass
-        elif self.next is v:
-            self.next = v.next
-        else:
-            cur = self.next
-            while cur.next:
-                if cur.next is v:
-                    cur.next = v.next
-                    break
-                cur = cur.next
+        cur = self
+        while cur.next:
+            if cur.next is v:
+                cur.next = v.next
+                break
+            cur = cur.next
         if self.last is v:
             self.last = v.next
 
