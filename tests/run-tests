@@ -631,6 +631,7 @@ the last matching regex is used:
     if not args.keep_path:
         # clear search path to make sure tests use only builtin modules
         os.environ['MICROPYPATH'] = ''
+    os.environ['MICROPYPATH'] += ':../extmod'
 
     # Even if we run completely different tests in a different directory,
     # we need to access feature_check's from the same directory as the
