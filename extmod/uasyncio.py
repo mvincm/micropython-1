@@ -234,18 +234,17 @@ class Lock:
 # Event class for primitive events that can be waited on, set, and cleared
 class Event:
     def __init__(self):
+        self.state = 0 # 0=unset; 1=set
         self.waiting = Queue() # Queue of Tasks waiting on completion of this event
     def set(self):
-        if self.waiting:
-            # Event becomes set, schedule any tasks waiting on it
-            while self.waiting.next:
-                _queue.push_head(self.waiting.pop_head())
-            self.waiting = None # Indicate event is now set
+        # Event becomes set, schedule any tasks waiting on it
+        while self.waiting.next:
+            _queue.push_head(self.waiting.pop_head())
+        self.state = 1
     def clear(self):
-        if not self.waiting:
-            self.waiting = Queue()
+        self.state = 0
     async def wait(self):
-        if self.waiting:
+        if self.state == 0:
             # Event not set, put the calling task on the event's waiting queue
             self.waiting.push_head(cur_task)
             # Set calling task's data to this event that it waits on, to double-link it
