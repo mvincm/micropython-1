@@ -82,7 +82,7 @@ class Task:
             # Lazily allocated head of linked list of Tasks waiting on completion of this task
             self.waiting = Queue()
         return self
-    def send(self, v):
+    def __next__(self):
         if not self.coro:
             # Task finished, raise return value to caller so it can continue
             raise self.data
