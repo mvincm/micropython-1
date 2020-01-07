@@ -40,6 +40,14 @@ async def main():
     print('main sleep')
     await asyncio.sleep(0.01)
 
+    # Cancel task multiple times after it has started
+    t = asyncio.create_task(task(2, True))
+    await asyncio.sleep(0.01)
+    for _ in range(4):
+        print(t.cancel())
+    print('main sleep')
+    await asyncio.sleep(0.01)
+
     # Await on a cancelled task
     print('main wait')
     try:
