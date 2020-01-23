@@ -28,12 +28,12 @@ class Lock:
             core.cur_task.data = self.waiting
             try:
                 yield
-            except core.CancelledError:
+            except core.CancelledError as er:
                 if self.state == 1:
                     # Cancelled while pending on resume, schedule next waiting Task
                     self.state = 2
                     self.release()
-                raise
+                raise er
         # Lock available, set it as locked
         self.state = 2
         return True
