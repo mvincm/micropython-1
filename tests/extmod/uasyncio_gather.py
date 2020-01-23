@@ -1,3 +1,5 @@
+# test uasyncio.gather() function
+
 try:
     import uasyncio as asyncio
 except ImportError:
