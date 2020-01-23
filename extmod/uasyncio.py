@@ -316,7 +316,7 @@ class Event:
 class IOQueue:
     def __init__(self):
         self.poller = select.poll()
-        self.map = {}
+        self.map = {} # maps id(stream) to [task_waiting_read, task_waiting_write, stream]
     def _queue(self, s, idx):
         if id(s) not in self.map:
             entry = [None, None, s]
@@ -353,12 +353,13 @@ class IOQueue:
     def wait_io_event(self, dt):
         for s, ev in self.poller.ipoll(dt):
             sm = self.map[id(s)]
-            err = ev & ~(select.POLLIN | select.POLLOUT)
-            #print('poll', s, sm, ev, err)
-            if ev & select.POLLIN or (err and sm[0] is not None):
+            #print('poll', s, sm, ev)
+            if ev & ~select.POLLOUT and sm[0] is not None:
+                # POLLIN or error
                 _queue.push_head(sm[0])
                 sm[0] = None
-            if ev & select.POLLOUT or (err and sm[1] is not None):
+            if ev & ~select.POLLIN and sm[1] is not None:
+                # POLLOUT or error
                 _queue.push_head(sm[1])
                 sm[1] = None
             if sm[0] is None and sm[1] is None:
