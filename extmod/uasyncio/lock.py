@@ -1,11 +1,13 @@
 # MicroPython uasyncio module
 # MIT license; Copyright (c) 2019-2020 Damien P. George
 
+from . import core
+
 # Lock class for primitive mutex capability
 class Lock:
     def __init__(self):
         self.state = 0 # 0=unlocked; 1=unlocked but waiting task pending resume; 2=locked
-        self.waiting = Queue() # Queue of Tasks waiting to acquire this Lock
+        self.waiting = core.Queue() # Queue of Tasks waiting to acquire this Lock
     def locked(self):
         return self.state == 2
     def release(self):
@@ -13,7 +15,7 @@ class Lock:
             raise RuntimeError
         if self.waiting.peek():
             # Task(s) waiting on lock, schedule first Task
-            _queue.push_head(self.waiting.pop_head())
+            core._queue.push_head(self.waiting.pop_head())
             self.state = 1
         else:
             # No Task waiting so unlock
@@ -21,12 +23,12 @@ class Lock:
     async def acquire(self):
         if self.state != 0 or self.waiting.peek():
             # Lock unavailable, put the calling Task on the waiting queue
-            self.waiting.push_head(cur_task)
+            self.waiting.push_head(core.cur_task)
             # Set calling task's data to the lock's queue so it can be removed if needed
-            cur_task.data = self.waiting
+            core.cur_task.data = self.waiting
             try:
                 yield
-            except CancelledError:
+            except core.CancelledError:
                 if self.state == 1:
                     # Cancelled while pending on resume, schedule next waiting Task
                     self.state = 2
