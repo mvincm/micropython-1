@@ -1,5 +1,14 @@
 # test that basic scheduling of tasks, and uasyncio.sleep_ms, does not use the heap
 
+import micropython
+
+# strict stackless builds can't call functions without allocating a frame on the heap
+try:
+    f = lambda:0; micropython.heap_lock(); f(); micropython.heap_unlock()
+except RuntimeError:
+    print('SKIP')
+    raise SystemExit
+
 try:
     import uasyncio as asyncio
 except ImportError:
@@ -8,8 +17,6 @@ except ImportError:
     except ImportError:
         print('SKIP')
         raise SystemExit
-
-import micropython
 
 async def task(id, n, t):
     for i in range(n):
